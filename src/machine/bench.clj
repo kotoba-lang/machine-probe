@@ -307,3 +307,66 @@
               :soa (samples #(sum-soa soa n) opts)}
      :unrolled {:aos (samples #(sum-aos-unrolled aos n width) opts)
                 :soa (samples #(sum-soa-unrolled soa n) opts)}}))
+
+;; ── independent calibration ──────────────────────────────────────────────
+;;
+;; `layout/achievable-ratio` needs a loop floor and a bandwidth. Taking the
+;; first from the candidate arm and the second from the baseline arm makes the
+;; formula reproduce those two timings by construction — an identity dressed
+;; as a prediction, which is what happened here on 2026-08-03 before anyone
+;; noticed. These two measurements exist so the constants come from somewhere
+;; else entirely, and the model can then be asked about a configuration nobody
+;; has run.
+
+(defn loop-floor-ns
+  "Nanoseconds per element with memory effectively free.
+
+  A working set small enough to sit in L1 makes the memory term vanish, so
+  what is left is the loop: index arithmetic, bounds check, the add. This is
+  the term `achievable-ratio` calls `loop-ns-per-element`, and measuring it
+  here rather than reading it off the arm being explained is the whole point."
+  [{:keys [elements] :or {elements 2048} :as opts}]
+  (let [xs (make-soa elements)
+        ;; Many passes over the same small array: the loop cost dominates and
+        ;; the timer's own resolution does not.
+        passes 2000
+        s (samples (fn [] (loop [p 0 acc 0.0]
+                            (if (< p passes)
+                              (recur (inc p) (+ acc (sum-soa-unrolled xs elements)))
+                              acc)))
+                   opts)
+        mean (/ (reduce + 0.0 s) (count s))]
+    {:elements elements
+     :passes passes
+     :samples s
+     :ns-per-element (/ mean (* (double elements) passes))
+     :working-set-bytes (* 8 elements)}))
+
+(defn bandwidth-bytes-per-ns
+  "Bytes per nanosecond a single thread observes on a streaming read.
+
+  **A contiguous f64 sum cannot measure this, and the first version of this
+  function tried to.** Each iteration of that loop touches 8 bytes and costs
+  0.766 ns, so it caps at 10.4 GB/s no matter how fast the memory is — what
+  comes back is the loop floor wearing different units, and feeding it to
+  `achievable-ratio` produced a prediction 65% wrong (it over-predicted the
+  AoS arm by 2.9x, because that arm really did reach 31.5 GB/s).
+
+  So the scan is strided by a full cache line: every touched element pulls
+  `line-bytes` and the loop cost is amortised over all of them, which puts the
+  memory system back in charge. Stride and size are both different from
+  anything `achievable-ratio` is asked to predict."
+  [machine {:keys [elements] :or {elements 6000000} :as opts}]
+  (let [line (or (m/line-bytes machine) 64)
+        stride (quot line 8)
+        xs (make-soa elements)
+        touched (quot elements stride)
+        s (samples #(sum-aos-unrolled xs touched stride) opts)
+        mean (/ (reduce + 0.0 s) (count s))]
+    {:elements elements
+     :stride stride
+     :touched touched
+     :samples s
+     ;; Bytes MOVED, not bytes summed: a strided touch pulls a whole line.
+     :bytes-per-ns (/ (* (double line) touched) mean)
+     :working-set-bytes (* 8 elements)}))
