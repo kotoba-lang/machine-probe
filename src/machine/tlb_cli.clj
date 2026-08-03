@@ -69,12 +69,17 @@
     (when (seq curves)
       ;; What perfgate would have said. Printed rather than obeyed, so nobody
       ;; has to take on trust that the stricter check was considered.
-      ;; The per-sample spread is deliberately NOT the gate here, and this
-      ;; does not print it -- translation-curve does not return it, and
-      ;; inventing a number to look thorough is worse than saying so.
-      ;; Surfacing it alongside is a follow-up.
       (println (format "  runs completed: %d/%d · gate: across-run reproducibility of the ratio"
                        (count curves) runs))
+      ;; Both criteria, side by side. The per-sample spread is no longer the
+      ;; decision, but hiding the stricter number would leave a reader unable
+      ;; to tell a steady machine from a lucky one.
+      (println "  per-sample spread (perfgate's criterion, reported not obeyed):")
+      (doseq [regime [:dependent :streaming]]
+        (let [worst (apply max 0.0 (for [c curves] (apply max 0.0 (vals (get-in c [:sample-spread regime] {})))))
+              median (let [vs (sort (for [c curves, [_ v] (get-in c [:sample-spread regime] {})] v))]
+                       (if (seq vs) (nth vs (quot (count vs) 2)) 0.0))]
+          (println (format "    %-10s worst %.3f · median %.3f" (name regime) worst median))))
       (println))
     (when-let [u (:unstable result)]
       (println "  REFUSED — the curve does not reproduce across runs.")

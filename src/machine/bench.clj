@@ -555,25 +555,36 @@
                             ts (samples f {:warmup warmup :reps reps})]
                         [pages (/ (arm-statistic ts) steps) ts]))
          ;; constant 512 KiB tile and constant 1 KiB run across every arm
-         ;; same reasoning as the chase: more work per sample
-         h 32768
+         ;; Total matrix bytes held CONSTANT across the arms, by scaling the
+         ;; row count inversely with the stride. Without this the arms differ
+         ;; in footprint as well as in page spread -- 8 MiB at w=128 against
+         ;; 1 GiB at w=4096 -- so a difference between them could be the
+         ;; allocation rather than the translation, and the widest arm pays
+         ;; page-fault and GC costs the narrowest never sees. Measured, that
+         ;; showed up as streaming arms swinging 109-245% between runs while
+         ;; the chase arms stayed at 10-35%.
+         total-doubles (* 8192 4096)
          stream-arms (for [w [TILE-COLS (* TILE-COLS 4) 2048 4096]]
-                       (let [a (double-array (* h w) 1.0)
+                       (let [h (quot total-doubles w)
+                             a (double-array (* h w) 1.0)
                              f #(tile-scan a w rows)
                              ts (samples f {:warmup warmup :reps reps})
                              elems (* h TILE-COLS TILE-VISITS)
                              pages-per-tile (min rows
                                                  (long (Math/ceil (/ (* rows (* w 8.0)) page))))]
                          [pages-per-tile (/ (arm-statistic ts) elems) ts]))
-         noisy (fn [regime arms]
-                 (keep (fn [[pages _ ts]]
-                         (let [rsd (:relative-stdev (pg/summarize ts))]
-                           (when (> rsd max-rsd)
-                             {:regime regime :pages pages :relative-stdev rsd
-                              :allowed max-rsd})))
-                       arms))
-         refusals (concat (noisy :dependent chase-arms)
-                          (noisy :streaming stream-arms))]
+         spread-of (fn [regime arms]
+                     (into (sorted-map)
+                           (for [[pages _ ts] arms]
+                             [pages (:relative-stdev (pg/summarize ts))])))
+         sample-spread {:dependent (spread-of :dependent chase-arms)
+                        :streaming (spread-of :streaming stream-arms)}
+         refusals (for [[regime by-pages] sample-spread
+                        [pages rsd] by-pages
+                        :when (> rsd max-rsd)]
+                    {:regime regime :pages pages :relative-stdev rsd
+                     :allowed max-rsd})
+         refusals (vec refusals)]
      (when (seq refusals)
        ;; Two runs of this probe once produced 2.74x and 2.13x for the same
        ;; arm, and the verdict line flipped between them. A fact that changes
@@ -589,7 +600,13 @@
                                    "arm from 0.166 to 0.507. More samples characterise "
                                    "the noise better rather than reducing it. perfgate "
                                    "refuses arms above " max-rsd " relative stdev.")})))
-     {:penalty-by-pages
+     ;; Provenance, not diagnostics. `machine` already requires :source and
+     ;; :runtime because a figure nobody can place is a figure nobody can
+     ;; trust; how well-determined each entry was belongs in the same
+     ;; category, and a consumer deciding whether to plan against a 1.31x
+     ;; penalty is better off knowing that entry sat at 0.12 spread.
+     {:sample-spread sample-spread
+      :penalty-by-pages
       {:dependent (normalise (into {} (map (fn [[p t _]] [p t]) chase-arms)))
        ;; later arms can land on the same page count once the stride passes a
        ;; page; keep the slower, which is the one a planner should hear about
