@@ -5,7 +5,7 @@
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         io.github.kotoba-lang/machine
         {:git/url "https://github.com/kotoba-lang/machine.git"
-         :git/sha "060ef2ae22e5748107c46fc2829103c1e15e2213"}
+         :git/sha "d0a55357b5a7134e33399fa74a3d3f2225a3953a"}
         ;; machine.bench closes the loop: layout predicts, this measures,
         ;; perfgate rules. Both are :library/:assurance, which an :assurance
         ;; repo may depend on.
@@ -28,6 +28,7 @@
   :bench {:main-opts ["-m" "machine.bench-cli"]}
   :scaling {:main-opts ["-m" "machine.scaling-cli"]}
   :tiling {:main-opts ["-m" "machine.tiling-cli"]}
+  :tlb {:main-opts ["-m" "machine.tlb-cli"]}
   :unrolled {:main-opts ["-m" "machine.unrolled-cli"]}
   :calibrate {:main-opts ["-m" "machine.calibrate-cli"]}
   :curve {:main-opts ["-m" "machine.curve-cli"]}

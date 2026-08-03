@@ -17,6 +17,7 @@
   governor are all in the measurement. Warmup runs before samples, samples are
   reported raw, and `perfgate` is what decides whether they mean anything."
   (:require [layout.core :as l]
+            [perfgate.core :as pg]
             [machine.core :as m]))
 
 ;; ── the two layouts, as actual arrays ────────────────────────────────────
@@ -424,3 +425,144 @@
                   (System/getProperty "java.version")
                   ": one f64 every S bytes over " (quot bytes 1048576) " MiB")
      :runtime :jvm}))
+
+;; ── translation (TLB) ────────────────────────────────────────────────────
+;;
+;; Two walks over the SAME bytes with the SAME cache pressure, differing only
+;; in how many pages those bytes sit on. That is the whole design: if page
+;; count is held to be the cause, then line count -- and therefore cache
+;; pressure -- has to be held fixed, or the result is just a cache curve
+;; wearing a TLB costume.
+
+(def ^:private ^:const LINE-LONGS 16)   ; 128-byte line / 8
+
+(defn chase-over
+  "A pointer chase touching `lines-per-page` lines on each of `pages` pages.
+
+  The total number of distinct lines is `pages * lines-per-page`, so a sweep
+  that doubles pages while halving lines-per-page holds the cache footprint
+  exactly constant and varies only the page spread. Page order is shuffled so
+  neither the prefetcher nor the page walker gets a run of ascending pages to
+  work with."
+  ^longs [^long pages ^long lines-per-page ^long page-bytes ^long seed]
+  (let [lpp (quot page-bytes 8)
+        total (* pages lines-per-page)
+        a (long-array (* pages lpp))
+        idx (long-array total)
+        r (java.util.Random. seed)]
+    (dotimes [k total]
+      (aset idx k (+ (* (quot k lines-per-page) lpp)
+                     (* (rem k lines-per-page) LINE-LONGS))))
+    (loop [i (dec total)]
+      (when (pos? i)
+        (let [j (.nextInt r (inc i)) t (aget idx i)]
+          (aset idx i (aget idx j)) (aset idx j t) (recur (dec i)))))
+    (dotimes [k total] (aset a (aget idx k) (aget idx (rem (inc k) total))))
+    a))
+
+(defn chase ^long [^longs a ^long start ^long steps]
+  (loop [i 0 p start] (if (< i steps) (recur (inc i) (aget a p)) p)))
+
+(def ^:private ^:const TILE-COLS 128)   ; 1 KiB run -- identical in every arm
+(def ^:private ^:const TILE-VISITS 4)   ; revisit, so translation cost recurs
+
+(defn ^:private row-run
+  "Sum one contiguous run. Split out so the scan below never threads an
+  accumulator across nested loops, which is what boxes it."
+  ^double [^doubles a ^long base]
+  (loop [c 0 s 0.0] (if (>= c TILE-COLS) s (recur (inc c) (+ s (aget a (+ base c)))))))
+
+(defn tile-scan
+  "Stream over tiles of `rpt` rows, `TILE-COLS` wide, from a matrix `w` wide.
+
+  Tile shape and contiguous run length are identical whatever `w` is, so the
+  only thing `w` changes is how many pages a tile lands on. Without that
+  control a shape sweep confounds page count with run length, and the run
+  length is what the prefetcher cares about."
+  ^double [^doubles a ^long w ^long rpt]
+  (let [h (quot (alength a) w)
+        sink (double-array 1)]
+    (loop [r0 0]
+      (when (< r0 h)
+        (let [end (min h (+ r0 rpt))]
+          (loop [v 0]
+            (when (< v TILE-VISITS)
+              (loop [r r0]
+                (when (< r end)
+                  (aset sink 0 (+ (aget sink 0) (row-run a (* r w))))
+                  (recur (inc r))))
+              (recur (inc v))))
+          (recur (+ r0 rpt)))))
+    (aget sink 0)))
+
+(defn- normalise
+  "Times -> penalties relative to the cheapest arm, so the fact survives the
+  machine getting faster and the flat region reads as exactly 1.0."
+  [by-pages]
+  (let [best (apply min (vals by-pages))]
+    (into (sorted-map) (for [[p t] by-pages] [p (/ (Math/round (* 100.0 (/ t best))) 100.0)]))))
+
+(defn translation-curve
+  "Measure both translation regimes and return a `machine` `:tlb` fact.
+
+  The two curves are not two estimates of one number. A dependent chase has no
+  memory-level parallelism to hide a page walk behind and pays the cost in
+  full; a streaming walk has plenty and mostly does not. On the part this was
+  developed against the same page spread costs 5x under one and 1.36x under
+  the other, which is why `machine/translation-penalty` makes the caller name
+  the regime instead of guessing."
+  ([machine] (translation-curve machine {}))
+  ([machine {:keys [page-bytes reps warmup rows max-rsd]
+             :or {reps 7 warmup 3 rows 512
+                  max-rsd (:policy/max-relative-stdev pg/default-policy)}}]
+   (let [page (or page-bytes (get-in machine [:page :base-bytes]) 4096)
+         ;; constant 2048 lines across the whole dependent sweep
+         chase-arms (for [[pages lpp] [[16 128] [32 64] [64 32] [128 16]
+                                       [256 8] [512 4] [1024 2] [2048 1]]]
+                      (let [a (chase-over pages lpp page 7)
+                            steps 300000
+                            f #(double (chase a 0 steps))
+                            ts (samples f {:warmup warmup :reps reps})]
+                        [pages (/ (double (apply min ts)) steps) ts]))
+         ;; constant 512 KiB tile and constant 1 KiB run across every arm
+         h 8192
+         stream-arms (for [w [TILE-COLS (* TILE-COLS 4) 2048 4096]]
+                       (let [a (double-array (* h w) 1.0)
+                             f #(tile-scan a w rows)
+                             ts (samples f {:warmup warmup :reps reps})
+                             elems (* h TILE-COLS TILE-VISITS)
+                             pages-per-tile (min rows
+                                                 (long (Math/ceil (/ (* rows (* w 8.0)) page))))]
+                         [pages-per-tile (/ (double (apply min ts)) elems) ts]))
+         noisy (fn [regime arms]
+                 (keep (fn [[pages _ ts]]
+                         (let [rsd (:relative-stdev (pg/summarize ts))]
+                           (when (> rsd max-rsd)
+                             {:regime regime :pages pages :relative-stdev rsd
+                              :allowed max-rsd})))
+                       arms))
+         refusals (concat (noisy :dependent chase-arms)
+                          (noisy :streaming stream-arms))]
+     (when (seq refusals)
+       ;; Two runs of this probe once produced 2.74x and 2.13x for the same
+       ;; arm, and the verdict line flipped between them. A fact that changes
+       ;; every run is not a fact, and emitting one with a straight face is
+       ;; worse than emitting nothing -- `traversal` would size against it.
+       (throw (ex-info "translation curve too noisy to emit"
+                       {:phase :machine.bench/translation-curve
+                        :refusals (vec refusals)
+                        :note (str "take more samples, or quiet the machine. "
+                                   "perfgate refuses arms above "
+                                   max-rsd " relative stdev.")})))
+     {:penalty-by-pages
+      {:dependent (normalise (into {} (map (fn [[p t _]] [p t]) chase-arms)))
+       ;; later arms can land on the same page count once the stride passes a
+       ;; page; keep the slower, which is the one a planner should hear about
+       :streaming (normalise (reduce (fn [m [p t _]] (update m p (fnil max 0.0) t))
+                                     {} stream-arms))}
+      :source (str "machine.bench/translation-curve on "
+                   (System/getProperty "java.vm.name") " "
+                   (System/getProperty "java.version")
+                   ": one line per page held at constant line count ("
+                   page "-byte pages)")
+      :runtime :jvm})))
