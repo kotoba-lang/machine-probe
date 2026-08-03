@@ -182,3 +182,70 @@
                                                              (sum-soa-range soa from to)))
                                             opts)})
                    thread-counts)}))
+
+;; ── blocked matrix multiply ──────────────────────────────────────────────
+;;
+;; `traversal/tile-plan` picks a tile from a cache capacity. Whether that tile
+;; is the fastest one is a different question from whether it fits, and the
+;; roofline lesson says to check before believing: a model can be arithmetically
+;; right about bytes and still be answering a question the machine does not ask.
+;;
+;; Loop order is fixed to blocked `ikj` — the order `traversal/loop-order`
+;; derives — so that what varies across the sweep is the tile and nothing else.
+
+(defn matmul-tiled
+  "C += A*B for n x n row-major f64, blocked at `tile`. `tile` >= n is unblocked."
+  ;; No primitive hints on n/tile: Clojure caps primitive-taking fns at four
+  ;; args, and the arrays have to stay hinted or every aget boxes.
+  [^doubles a ^doubles b ^doubles c n tile]
+  (let [n (long n) tile (long tile)]
+   (loop [ii 0]
+    (when (< ii n)
+      (loop [kk 0]
+        (when (< kk n)
+          (loop [jj 0]
+            (when (< jj n)
+              (let [imax (min n (+ ii tile))
+                    kmax (min n (+ kk tile))
+                    jmax (min n (+ jj tile))]
+                (loop [i ii]
+                  (when (< i imax)
+                    (let [irow (* i n)]
+                      (loop [k kk]
+                        (when (< k kmax)
+                          (let [aik (aget a (+ irow k))
+                                krow (* k n)]
+                            (loop [j jj]
+                              (when (< j jmax)
+                                (aset c (+ irow j)
+                                      (+ (aget c (+ irow j)) (* aik (aget b (+ krow j)))))
+                                (recur (inc j)))))
+                          (recur (inc k)))))
+                    (recur (inc i)))))
+              (recur (+ jj tile))))
+          (recur (+ kk tile))))
+      (recur (+ ii tile))))))
+
+(defn- filled ^doubles [^long n]
+  (let [a (double-array (* n n))]
+    (dotimes [i (* n n)] (aset a i (double (mod i 97))))
+    a))
+
+(defn run-tiling
+  "Time `matmul-tiled` across `tiles`, everything else held fixed.
+
+  C is zeroed inside the timed region for every arm, so the memset is a
+  constant that cannot favour one tile over another."
+  [{:keys [n tiles] :or {n 768} :as opts}]
+  (let [a (filled n) b (filled n) c (double-array (* n n))
+        tiles (or tiles [8 16 32 48 64 128 256 384 n])]
+    {:n n
+     :flops (* 2.0 n n n)
+     :points (mapv (fn [t]
+                     {:tile t
+                      :samples (samples (fn []
+                                          (java.util.Arrays/fill c 0.0)
+                                          (matmul-tiled a b c n t)
+                                          (aget c 0))
+                                        opts)})
+                   tiles)}))

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 — 2026-08-03
+
+`machine.bench/run-tiling` and `clojure -M:tiling` — is `traversal/tile-plan`'s
+tile the fast one?
+
+Unanswerable here, and the CLI now says so before spending twenty minutes
+finding out. A pilot goes through `perfgate/detectable?` first: on this machine
+it reports a **133% minimum detectable improvement**, so a 10% tiling effect
+cannot pass whatever the sweep does. The sweep then confirms it — every tile
+from 8 to 768 lands within 1.2x of every other, and two runs of the same sweep
+named different winners (384, then 48).
+
+The cause is the loop-bound harness again. `traversal` records the finding as
+`:model/validation {:status :unvalidated}` — not `:wrong`, because nothing here
+shows the capacity rule is wrong; it shows this machine plus this harness
+cannot tell.
+
+
 ## 0.2.0 — 2026-08-03
 
 `machine.bench/run-scaling` and `clojure -M:scaling` — does contention widen

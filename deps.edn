@@ -12,9 +12,12 @@
         io.github.kotoba-lang/layout
         {:git/url "https://github.com/kotoba-lang/layout.git"
          :git/sha "6018cec1a7893a45e5f2f183f804c2f900bd4642"}
+        io.github.kotoba-lang/traversal
+        {:git/url "https://github.com/kotoba-lang/traversal.git"
+         :git/sha "7555c2bd344346965a30c624571a43de8ef25900"}
         io.github.kotoba-lang/perfgate
         {:git/url "https://github.com/kotoba-lang/perfgate.git"
-         :git/sha "696f93470880de3b4bfbe8e39205c8359f37c121"}}
+         :git/sha "7b34e2394653d792681c54b42e79e2ffefe5d61b"}}
  :aliases
  {:test {:extra-paths ["test" "test/resources"]
          :extra-deps {io.github.cognitect-labs/test-runner
@@ -24,5 +27,6 @@
   :probe {:main-opts ["-m" "machine.probe-cli"]}
   :bench {:main-opts ["-m" "machine.bench-cli"]}
   :scaling {:main-opts ["-m" "machine.scaling-cli"]}
+  :tiling {:main-opts ["-m" "machine.tiling-cli"]}
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
          :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test" "--fail-level" "error"]}}}
