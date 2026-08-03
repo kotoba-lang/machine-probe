@@ -370,3 +370,57 @@
      ;; Bytes MOVED, not bytes summed: a strided touch pulls a whole line.
      :bytes-per-ns (/ (* (double line) touched) mean)
      :working-set-bytes (* 8 elements)}))
+
+;; ── the bandwidth curve ──────────────────────────────────────────────────
+;;
+;; `bandwidth-bytes-per-ns` above measures ONE point, at a line stride. That
+;; single number was handed to two planners this afternoon that needed a
+;; different one, and both were wrong as a result. `machine.core` now carries
+;; a curve; this produces it.
+;;
+;; The loop is not a limit here the way it was for the contiguous sum: each
+;; iteration touches one cache line, so at ~0.8 ns/iteration the ceiling is
+;; over 150 GB/s and the memory system is comfortably in charge at every
+;; stride measured.
+
+(defn bandwidth-curve
+  "Bytes per nanosecond at each stride, as `machine.core`'s `:bandwidth` map.
+
+  One f64 touched every `S` bytes over a `bytes`-sized working set. Bytes
+  MOVED counts a whole line per touch once `S` reaches the line width, which
+  is what the memory system actually transfers.
+
+  The working set must be large enough that the touched lines do not fit in
+  cache. At a 64 KiB stride over 256 MiB only 4096 lines are touched — half a
+  megabyte — so that point measures TLB reach rather than DRAM bandwidth, and
+  is reported rather than hidden because that is exactly the regime a
+  page-strided planner is asking about."
+  [machine {:keys [bytes strides] :or {bytes (* 256 1024 1024)} :as opts}]
+  (let [line (or (m/line-bytes machine) 64)
+        strides (or strides (vec (take-while #(<= % (quot bytes 1024))
+                                             (iterate #(* 2 %) line))))
+        n (quot bytes 8)
+        xs (make-soa n)]
+    {:working-set-bytes bytes
+     :line-bytes line
+     :by-stride
+     (into (sorted-map)
+           (for [s strides
+                 :let [step (quot s 8)
+                       touches (quot n step)
+                       samples (samples #(sum-aos-unrolled xs touches step) opts)
+                       mean (/ (reduce + 0.0 samples) (count samples))]]
+             [s (/ (* (double line) touches) mean)]))
+     ;; The runtime is part of the provenance, not a detail. Measured on this
+     ;; machine, a C -O2 loop and this JVM loop disagree by 4x at a 128-byte
+     ;; stride (24.1 against 6.2 GB/s) and by less than 10% at 16 KiB, and the
+     ;; curves differ in SHAPE as well as scale -- the JVM's peak sits at
+     ;; 2 KiB where C's sits at 1 KiB. So a curve measured here describes
+     ;; JVM-on-this-machine, and feeding it to a model of native code would be
+     ;; the same category error as feeding a contiguous-scan number to a
+     ;; page-strided plan.
+     :source (str "machine.bench/bandwidth-curve on "
+                  (System/getProperty "java.vm.name") " "
+                  (System/getProperty "java.version")
+                  ": one f64 every S bytes over " (quot bytes 1048576) " MiB")
+     :runtime :jvm}))

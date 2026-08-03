@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0 — 2026-08-03
+
+`bandwidth-curve` and `clojure -M:curve` — measure the whole curve, not one
+point.
+
+`bandwidth-bytes-per-ns` measures a single line-strided figure. That number was
+handed to two planners this afternoon that needed a different one, and both
+were wrong as a result. `machine.core` 0.3.0 carries a curve; this produces it
+in the shape the descriptor takes, validates the result, and prints it ready to
+paste.
+
+Measured here (JVM, 256 MiB working set): 6.2 GB/s at a 128-byte stride, 23.8
+at 2 KiB, 10.2 at 32 KiB — a 3.9x spread.
+
+Against the same curve measured from C: 24.1 at 128 bytes, 34.3 at 1 KiB, 11.5
+at 16 KiB. Four times apart at the short-stride end, under 10% apart at the
+page size, and peaking at a different stride. **A curve describes a runtime on
+a machine, not a machine**, which is why `:runtime` is now required.
+
+
 ## 0.4.0 — 2026-08-03
 
 `machine.bench/sum-*-unrolled` and `clojure -M:unrolled` — get the loop out of
