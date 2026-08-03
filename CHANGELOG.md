@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0 — 2026-08-03
+
+`clojure -M:perarm` — does per-arm bandwidth lookup predict better than one
+shared constant?
+
+One configuration, two predictions, one measurement, and a verdict that can say
+the change bought nothing. It measures the bandwidth curve on the same run
+rather than reusing a pasted one, so a stale constant cannot be blamed either
+way.
+
+Result on this machine: ratio error 10% with one constant, 4% per arm, against
+a measured 17.56x. The limits are recorded in `layout`'s calibration — chiefly
+that the JVM curve is compressed at short strides, so the arms differed by only
+1.14x here rather than the 2.5x the change was designed for.
+
+
 ## 0.5.0 — 2026-08-03
 
 `bandwidth-curve` and `clojure -M:curve` — measure the whole curve, not one

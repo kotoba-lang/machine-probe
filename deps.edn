@@ -11,10 +11,10 @@
         ;; repo may depend on.
         io.github.kotoba-lang/layout
         {:git/url "https://github.com/kotoba-lang/layout.git"
-         :git/sha "f77483cb1047a66159e54952ef80af06eb56ffb6"}
+         :git/sha "91a3be3d6614d4b621931b3c223820e5610a595a"}
         io.github.kotoba-lang/traversal
         {:git/url "https://github.com/kotoba-lang/traversal.git"
-         :git/sha "7555c2bd344346965a30c624571a43de8ef25900"}
+         :git/sha "c5808c3bf71dbc733ddeb5ada7412cdd6b41582e"}
         io.github.kotoba-lang/perfgate
         {:git/url "https://github.com/kotoba-lang/perfgate.git"
          :git/sha "7b34e2394653d792681c54b42e79e2ffefe5d61b"}}
@@ -31,5 +31,6 @@
   :unrolled {:main-opts ["-m" "machine.unrolled-cli"]}
   :calibrate {:main-opts ["-m" "machine.calibrate-cli"]}
   :curve {:main-opts ["-m" "machine.curve-cli"]}
+  :perarm {:jvm-opts ["-Xmx12g"] :main-opts ["-m" "machine.perarm-cli"]}
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
          :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test" "--fail-level" "error"]}}}
