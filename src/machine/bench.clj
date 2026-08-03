@@ -495,6 +495,28 @@
           (recur (+ r0 rpt)))))
     (aget sink 0)))
 
+(defn arm-statistic
+  "The one number that stands for an arm: the MEAN.
+
+  Not the minimum, though a minimum is the usual choice for a latency
+  microbenchmark and for a good reason -- it rejects preemption. That is
+  exactly why it is wrong here. `perfgate` decides whether an arm may be
+  stated at all, and its separation rule is about means: qualifying needs
+  `mean_b - mean_c > sd_b + sd_c`. Reporting a minimum and then judging it
+  with a threshold calibrated for means compares a bound against a different
+  quantity than the one it bounds.
+
+  It also defeats the gate on purpose. The minimum is the statistic that
+  survives a loaded machine, so a min-reported curve looks steady while the
+  samples underneath are not -- measured here, batch minima came out at
+  0.22-0.49 relative spread where the raw samples were at 0.59-1.01. Both are
+  far over the allowed 0.10; the minimum simply hid how far.
+
+  Every other curve in this namespace already reports a mean. This makes the
+  translation curve stop being the exception."
+  ^double [xs]
+  (/ (reduce + 0.0 xs) (count xs)))
+
 (defn- normalise
   "Times -> penalties relative to the cheapest arm, so the fact survives the
   machine getting faster and the flat region reads as exactly 1.0."
@@ -523,7 +545,7 @@
                             steps 300000
                             f #(double (chase a 0 steps))
                             ts (samples f {:warmup warmup :reps reps})]
-                        [pages (/ (double (apply min ts)) steps) ts]))
+                        [pages (/ (arm-statistic ts) steps) ts]))
          ;; constant 512 KiB tile and constant 1 KiB run across every arm
          h 8192
          stream-arms (for [w [TILE-COLS (* TILE-COLS 4) 2048 4096]]
@@ -533,7 +555,7 @@
                              elems (* h TILE-COLS TILE-VISITS)
                              pages-per-tile (min rows
                                                  (long (Math/ceil (/ (* rows (* w 8.0)) page))))]
-                         [pages-per-tile (/ (double (apply min ts)) elems) ts]))
+                         [pages-per-tile (/ (arm-statistic ts) elems) ts]))
          noisy (fn [regime arms]
                  (keep (fn [[pages _ ts]]
                          (let [rsd (:relative-stdev (pg/summarize ts))]
@@ -551,9 +573,13 @@
        (throw (ex-info "translation curve too noisy to emit"
                        {:phase :machine.bench/translation-curve
                         :refusals (vec refusals)
-                        :note (str "take more samples, or quiet the machine. "
-                                   "perfgate refuses arms above "
-                                   max-rsd " relative stdev.")})))
+                        :note (str "quiet the machine. Taking more samples does NOT "
+                                   "fix this: the gate tests per-sample relative "
+                                   "stdev, which preemption does not average away -- "
+                                   "measured here, going from 7 reps to 25 moved one "
+                                   "arm from 0.166 to 0.507. More samples characterise "
+                                   "the noise better rather than reducing it. perfgate "
+                                   "refuses arms above " max-rsd " relative stdev.")})))
      {:penalty-by-pages
       {:dependent (normalise (into {} (map (fn [[p t _]] [p t]) chase-arms)))
        ;; later arms can land on the same page count once the stride passes a
