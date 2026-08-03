@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.4.0 — 2026-08-03
+
+`machine.bench/sum-*-unrolled` and `clojure -M:unrolled` — get the loop out of
+the memory system's way.
+
+Three experiments had failed because the per-element loop cost dwarfed the
+per-element memory cost. The cause was not the machine: a serial summation
+loop runs at floating-point add *latency*, because every add waits on the
+previous one. Four independent accumulators break the chain.
+
+| | ns/element | AoS/SoA ratio |
+|---|---|---|
+| serial | 2.87 | 2.12x |
+| unrolled x4 | 0.87 | **6.63x** |
+
+At n=8e6 the unrolled ratio reaches 20.2x, above the byte model's 16x, because
+a 1 GiB array exhausts TLB reach.
+
+**Still not enough.** SoA remains loop-bound at 0.87 ns/element against a
+0.36 ns memory cost, so `both-memory-bound?` is false at the sizes where the
+measurement is stable. Reaching it needs roughly one cycle per element, which
+means SIMD the JVM will not reliably emit — the next lever is a cheaper
+runtime, not a cheaper loop.
+
+Every gate here still refuses on `:too-noisy`: these arrays are 256 MiB to
+1 GiB and page-fault variance dominates. The loop speedup is reproducible
+across runs; the sealed claim is not yet.
+
+
 ## 0.3.0 — 2026-08-03
 
 `machine.bench/run-tiling` and `clojure -M:tiling` — is `traversal/tile-plan`'s

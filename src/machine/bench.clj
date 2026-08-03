@@ -249,3 +249,61 @@
                                           (aget c 0))
                                         opts)})
                    tiles)}))
+
+;; ── breaking the dependency chain ────────────────────────────────────────
+;;
+;; 3.03 ns per element for a sequential f64 sum is about ten cycles on this
+;; machine, which is far too many for one load and one add. The memory system
+;; is not the reason: 16 MiB in 6 ms is 2.7 GB/s, a small fraction of what the
+;; part delivers. The reason is the loop-carried dependency on the accumulator
+;; — every add waits for the previous add's result, so the loop runs at
+;; floating-point add latency rather than throughput.
+;;
+;; The fix is the classic one and it is not a micro-optimization: four
+;; independent accumulators let four adds be in flight at once. It matters
+;; here beyond speed, because a loop this slow makes every memory experiment
+;; in this repo unable to see the memory system at all.
+
+(defn sum-soa-unrolled
+  "Same sum, four independent accumulators."
+  ^double [^doubles xs n]
+  (let [n (long n)
+        limit (- n 3)]
+    (loop [i 0 a0 0.0 a1 0.0 a2 0.0 a3 0.0]
+      (if (< i limit)
+        (recur (+ i 4)
+               (+ a0 (aget xs i))
+               (+ a1 (aget xs (+ i 1)))
+               (+ a2 (aget xs (+ i 2)))
+               (+ a3 (aget xs (+ i 3))))
+        (loop [i i acc (+ (+ a0 a1) (+ a2 a3))]
+          (if (< i n) (recur (inc i) (+ acc (aget xs i))) acc))))))
+
+(defn sum-aos-unrolled
+  "Same, striding by `width` elements per accumulator."
+  ^double [^doubles a n width]
+  (let [n (long n) width (long width)
+        limit (- n 3)
+        w2 (* 2 width) w3 (* 3 width) w4 (* 4 width)]
+    (loop [i 0 o 0 a0 0.0 a1 0.0 a2 0.0 a3 0.0]
+      (if (< i limit)
+        (recur (+ i 4) (+ o w4)
+               (+ a0 (aget a o))
+               (+ a1 (aget a (+ o width)))
+               (+ a2 (aget a (+ o w2)))
+               (+ a3 (aget a (+ o w3))))
+        (loop [i i o o acc (+ (+ a0 a1) (+ a2 a3))]
+          (if (< i n) (recur (inc i) (+ o width) (+ acc (aget a o))) acc))))))
+
+(defn run-unrolled
+  "Both layouts with the dependency chain broken, alongside the original."
+  [machine {:keys [n width] :or {n 2000000 width 16} :as opts}]
+  (let [aos (make-aos n width)
+        soa (make-soa n)]
+    {:n n :width width
+     :machine-id (:machine/id machine)
+     :prediction (predicted machine n width)
+     :serial {:aos (samples #(sum-aos aos n width) opts)
+              :soa (samples #(sum-soa soa n) opts)}
+     :unrolled {:aos (samples #(sum-aos-unrolled aos n width) opts)
+                :soa (samples #(sum-soa-unrolled soa n) opts)}}))
