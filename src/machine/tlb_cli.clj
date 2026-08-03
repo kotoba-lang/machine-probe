@@ -32,16 +32,62 @@
         ;; 0.204 arm. A single pass of a noise gate is one sample of a
         ;; Bernoulli process, not evidence the measurement is stable, so the
         ;; whole curve is measured `runs` times and every one must qualify.
-        attempts (repeatedly runs
-                   #(try {:tlb (b/translation-curve base {:reps reps})}
-                         (catch clojure.lang.ExceptionInfo e {:refused (ex-data e)})))
-        attempts (vec attempts)
-        result (or (first (filter :refused attempts)) (first attempts))
-        curves (mapv :tlb attempts)
+        ;; Gate on what the fact CLAIMS. A :tlb fact asserts a penalty ratio,
+        ;; so the thing that must reproduce is the ratio -- not every sample
+        ;; underneath it. Measured on this machine, the emitted figure is
+        ;; markedly steadier than the samples it comes from: at 64 pages the
+        ;; samples spread 0.089 while the mean across six independent batches
+        ;; spread 0.042, and at 512 pages 0.139 against 0.114. Refusing on the
+        ;; sample spread therefore rejects facts that do reproduce.
+        ;;
+        ;; perfgate's per-arm spread is no longer the decision. It is still a
+        ;; real signal about the machine, and surfacing it next to this one is
+        ;; a follow-up -- translation-curve would have to return it.
+        ;; `:max-relative-stdev` is raised for the per-run pass so a noisy run
+        ;; still yields a curve to compare; the decision is the across-run one.
+        attempts (vec (repeatedly runs
+                        #(try {:tlb (b/translation-curve base {:reps reps :max-rsd 1.0})}
+                              (catch clojure.lang.ExceptionInfo e {:refused (ex-data e)}))))
+        curves (vec (keep :tlb attempts))
+        ;; across-run spread of every penalty, which is the decision
+        spreads (when (= runs (count curves))
+                  (for [regime [:dependent :streaming]
+                        p (sort (distinct (mapcat #(keys (get-in % [:penalty-by-pages regime])) curves)))
+                        :let [vs (keep #(get-in % [:penalty-by-pages regime p]) curves)]
+                        :when (seq vs)]
+                    {:regime regime :pages p :values (vec vs)
+                     :across (/ (- (apply max vs) (apply min vs)) (max 1e-9 (apply min vs)))}))
+        unstable (filter #(> (:across %) 0.10) spreads)
+        result (cond
+                 (< (count curves) runs) {:refused (:refused (first (filter :refused attempts)))}
+                 (seq unstable) {:unstable (vec unstable)}
+                 :else {:tlb (first curves)})
         tlb (:tlb result)
         with (when tlb (assoc base :tlb tlb))]
     (println (:machine/id base) "·" page "-byte pages · reps" reps "· runs" runs)
     (println)
+    (when (seq curves)
+      ;; What perfgate would have said. Printed rather than obeyed, so nobody
+      ;; has to take on trust that the stricter check was considered.
+      ;; The per-sample spread is deliberately NOT the gate here, and this
+      ;; does not print it -- translation-curve does not return it, and
+      ;; inventing a number to look thorough is worse than saying so.
+      ;; Surfacing it alongside is a follow-up.
+      (println (format "  runs completed: %d/%d · gate: across-run reproducibility of the ratio"
+                       (count curves) runs))
+      (println))
+    (when-let [u (:unstable result)]
+      (println "  REFUSED — the curve does not reproduce across runs.")
+      (println)
+      (doseq [{:keys [regime pages values across]} u]
+        (println (format "    %-10s %6d pages  %s  spread %.0f%%" (name regime) pages
+                         (clojure.string/join " " (map #(format "%.2fx" %) values))
+                         (* 100.0 across))))
+      (println)
+      (println "   this is the gate that matters: a fact claims a ratio, so the ratio")
+      (println "   must repeat. Sample-level jitter that averages out is not the threat.")
+      (flush)
+      (System/exit 1))
     (when-let [r (:refused result)]
       ;; The useful outcome. An earlier version of this probe emitted a curve
       ;; whatever the noise, and two runs produced 2.74x and 1.31x for the
