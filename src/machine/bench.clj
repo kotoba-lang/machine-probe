@@ -542,12 +542,21 @@
          chase-arms (for [[pages lpp] [[16 128] [32 64] [64 32] [128 16]
                                        [256 8] [512 4] [1024 2] [2048 1]]]
                       (let [a (chase-over pages lpp page 7)
-                            steps 300000
+                            ;; Long enough that one scheduler preemption is a
+                            ;; small fraction of a sample. At 300k steps a
+                            ;; sample ran 3-25 ms and a single ~5 ms migration
+                            ;; moved it by tens of percent; at 3M it is 30-250
+                            ;; ms and the same event is noise instead of the
+                            ;; signal. This lowers spread by making the
+                            ;; measurement longer, not by hiding anything --
+                            ;; the alternative, relaxing the gate, would.
+                            steps 3000000
                             f #(double (chase a 0 steps))
                             ts (samples f {:warmup warmup :reps reps})]
                         [pages (/ (arm-statistic ts) steps) ts]))
          ;; constant 512 KiB tile and constant 1 KiB run across every arm
-         h 8192
+         ;; same reasoning as the chase: more work per sample
+         h 32768
          stream-arms (for [w [TILE-COLS (* TILE-COLS 4) 2048 4096]]
                        (let [a (double-array (* h w) 1.0)
                              f #(tile-scan a w rows)
