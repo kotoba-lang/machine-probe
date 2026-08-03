@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.0 — 2026-08-03
+
+`machine.bench/run-scaling` and `clojure -M:scaling` — does contention widen
+the layout gap?
+
+The answer is that this harness cannot say. Three consecutive runs put the
+1-thread to 8-thread change at +3%, +31% and -22%, and every point was refused
+by `perfgate` as `:too-noisy`. On a heterogeneous CPU the scheduler moves
+threads between performance and efficiency cores mid-run, and nothing here
+pins them.
+
+**The first version of the CLI printed a SUPPORTED / NOT-SUPPORTED verdict
+straight off the means**, which is how two runs of refused data produced
+opposite conclusions. That is precisely the failure `perfgate` exists to
+prevent, committed by the tool that consumes `perfgate`. The verdict is now
+gated on the points: any point that does not qualify makes the trend
+INCONCLUSIVE, and the percentage is printed with an explicit instruction not
+to read it as a result.
+
+What *was* stable across all three runs, and is worth more than the trend:
+SoA peaks near 6 GB/s while AoS reaches 35-42 GB/s. SoA is bound by the
+per-element loop, not by memory — which is the observation that produced
+`layout/achievable-ratio` in layout 0.3.0.
+
+
 ## 0.1.0 — 2026-08-03
 
 The effect half of the `machine` contract, which declares

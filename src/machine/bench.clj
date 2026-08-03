@@ -118,3 +118,67 @@
       :prediction (predicted machine n width)
       :aos-samples (samples #(sum-aos aos n width) opts)
       :soa-samples (samples #(sum-soa soa n) opts)})))
+
+;; ── bandwidth saturation ─────────────────────────────────────────────────
+;;
+;; The single-threaded run said 2.02x against a predicted 16x. The obvious
+;; hypothesis for the gap is that one core cannot ask for enough bandwidth to
+;; make bandwidth the bottleneck: the prefetcher hides the latency, and a
+;; machine with hundreds of GB/s to give has plenty left over. If that is
+;; right, adding cores should push the measured ratio toward the byte ratio,
+;; because every added core competes for the same memory system.
+;;
+;; If it is wrong — if the ratio stays flat as cores are added — then the gap
+;; is somewhere else and the hypothesis has to be thrown away rather than
+;; explained around.
+
+(defn sum-aos-range ^double [^doubles a ^long from ^long to ^long width]
+  (loop [i from acc 0.0]
+    (if (< i to)
+      (recur (inc i) (+ acc (aget a (* width i))))
+      acc)))
+
+(defn sum-soa-range ^double [^doubles xs ^long from ^long to]
+  (loop [i from acc 0.0]
+    (if (< i to)
+      (recur (inc i) (+ acc (aget xs i)))
+      acc)))
+
+(defn- parallel
+  "Split `n` into `threads` contiguous slices and sum them concurrently.
+
+  Contiguous rather than interleaved on purpose: interleaving would put
+  several threads on the same cache lines and measure false sharing instead
+  of bandwidth."
+  ^double [threads ^long n slice-fn]
+  (let [chunk (quot n threads)
+        fs (mapv (fn [t]
+                   (let [from (* t chunk)
+                         to (if (= t (dec threads)) n (* (inc t) chunk))]
+                     (future (slice-fn from to))))
+                 (range threads))]
+    (reduce + 0.0 (map deref fs))))
+
+(defn run-scaling
+  "Measure both layouts at each thread count in `thread-counts`.
+
+  Returns one entry per thread count, each with raw samples for both arms, so
+  every point can be handed to `perfgate` separately. A scaling curve whose
+  points were never individually gated is a shape, not a result."
+  [machine {:keys [n width thread-counts] :or {n 2000000 width 16 thread-counts [1 2 4 8]}
+            :as opts}]
+  (let [aos (make-aos n width)
+        soa (make-soa n)]
+    {:n n
+     :width width
+     :machine-id (:machine/id machine)
+     :prediction (predicted machine n width)
+     :points (mapv (fn [t]
+                     {:threads t
+                      :aos-samples (samples #(parallel t n (fn [from to]
+                                                             (sum-aos-range aos from to width)))
+                                            opts)
+                      :soa-samples (samples #(parallel t n (fn [from to]
+                                                             (sum-soa-range soa from to)))
+                                            opts)})
+                   thread-counts)}))
