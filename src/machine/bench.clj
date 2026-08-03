@@ -450,9 +450,20 @@
         a (long-array (* pages lpp))
         idx (long-array total)
         r (java.util.Random. seed)]
-    (dotimes [k total]
-      (aset idx k (+ (* (quot k lines-per-page) lpp)
-                     (* (rem k lines-per-page) LINE-LONGS))))
+    ;; Stagger which line inside the page is touched, by page index. Without
+    ;; this, one-line-per-page puts every touched line at a page boundary --
+    ;; all 16 KiB apart and therefore congruent to the same handful of cache
+    ;; sets -- and the arm measures L1 conflict misses while being read as
+    ;; translation. Measured on this machine at 2048 pages: 86.83 ns aligned
+    ;; against 26.42 ns staggered, same page count and same line count, a 3.29x
+    ;; artifact. The line count and page count are unchanged by staggering, so
+    ;; the quantity under study is not.
+    (let [lines-per-pg (quot page-bytes (* LINE-LONGS 8))]
+      (dotimes [k total]
+        (let [pg (quot k lines-per-page)
+              within (rem (+ (rem k lines-per-page) (rem pg lines-per-pg))
+                          lines-per-pg)]
+          (aset idx k (+ (* pg lpp) (* within LINE-LONGS))))))
     (loop [i (dec total)]
       (when (pos? i)
         (let [j (.nextInt r (inc i)) t (aget idx i)]
