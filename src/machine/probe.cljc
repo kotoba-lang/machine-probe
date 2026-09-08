@@ -20,7 +20,7 @@
 
   Pure `.cljc` except for the injected reader. Depends only on
   `kotoba-lang/machine`."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [machine.core :as m]))
 
 (def format-id :kotoba.machine.probe/v1)
@@ -107,7 +107,7 @@
                     (vec (for [l (range levels)
                                :let [caches (cluster-caches s l line)]
                                :when (seq caches)]
-                           {:id (keyword (str/lower-case
+                           {:id (keyword (str/lower
                                           (or (get s (str "hw.perflevel" l ".name"))
                                               (str "level" l))))
                             :cores (or (n-of s (str "hw.perflevel" l ".physicalcpu")) 1)
