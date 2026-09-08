@@ -26,14 +26,14 @@
   A prediction that misses is the useful outcome either way — it is either the
   model that is wrong or the calibration, and both are worth knowing."
   (:require [clojure.java.shell :as shell]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [layout.core :as l]
             [machine.bench :as b]
             [machine.core :as m]
             [machine.probe :as p]))
 
 (defn- platform []
-  (let [os (str/lower-case (System/getProperty "os.name" ""))]
+  (let [os (str/lower (System/getProperty "os.name" ""))]
     (cond (str/includes? os "mac") :darwin
           (str/includes? os "linux") :linux
           :else :unknown)))

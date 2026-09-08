@@ -6,14 +6,14 @@
   and the prediction error. Every step refuses to guess, so if any of them
   cannot answer the command says so instead of printing a number."
   (:require [clojure.java.shell :as shell]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [machine.bench :as b]
             [machine.core :as m]
             [machine.probe :as p]
             [perfgate.core :as g]))
 
 (defn- platform []
-  (let [os (str/lower-case (System/getProperty "os.name" ""))]
+  (let [os (str/lower (System/getProperty "os.name" ""))]
     (cond (str/includes? os "mac") :darwin
           (str/includes? os "linux") :linux
           :else :unknown)))

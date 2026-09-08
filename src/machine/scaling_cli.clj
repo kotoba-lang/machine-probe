@@ -8,14 +8,14 @@
   rather than argued around — so the output prints the curve either way, and
   every point goes through `perfgate` on its own."
   (:require [clojure.java.shell :as shell]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [machine.bench :as b]
             [machine.core :as m]
             [machine.probe :as p]
             [perfgate.core :as g]))
 
 (defn- platform []
-  (let [os (str/lower-case (System/getProperty "os.name" ""))]
+  (let [os (str/lower (System/getProperty "os.name" ""))]
     (cond (str/includes? os "mac") :darwin
           (str/includes? os "linux") :linux
           :else :unknown)))

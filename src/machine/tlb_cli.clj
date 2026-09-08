@@ -8,13 +8,13 @@
   that goes straight into a descriptor, and the last thing this prints is
   whether `machine/valid?` accepts the descriptor it just built."
   (:require [clojure.java.shell :as shell]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [machine.bench :as b]
             [machine.core :as m]
             [machine.probe :as p]))
 
 (defn- platform []
-  (let [os (str/lower-case (System/getProperty "os.name" ""))]
+  (let [os (str/lower (System/getProperty "os.name" ""))]
     (cond (str/includes? os "mac") :darwin
           (str/includes? os "linux") :linux
           :else :unknown)))
@@ -86,7 +86,7 @@
       (println)
       (doseq [{:keys [regime pages values across]} u]
         (println (format "    %-10s %6d pages  %s  spread %.0f%%" (name regime) pages
-                         (clojure.string/join " " (map #(format "%.2fx" %) values))
+                         (str/join " " (map #(format "%.2fx" %) values))
                          (* 100.0 across))))
       (println)
       (println "   this is the gate that matters: a fact claims a ratio, so the ratio")
@@ -129,7 +129,7 @@
           (let [vs (keep #(get % p) per-run)]
             (when (seq vs)
               (println (format "    %6d pages  %s  spread %.0f%%" p
-                               (clojure.string/join " " (map #(format "%.2fx" %) vs))
+                               (str/join " " (map #(format "%.2fx" %) vs))
                                (* 100.0 (/ (- (apply max vs) (apply min vs))
                                            (max 1e-9 (apply min vs)))))))))))
     (println)
