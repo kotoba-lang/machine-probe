@@ -38,7 +38,7 @@
          {:git/url "https://github.com/kotoba-lang/gpu.git"
           :git/sha "a4a8173c23ba8389e63849109e93ad6a791486fc"}
          io.github.cognitect-labs/test-runner
-         {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+         {:git/tag "v0.5.1" :git/sha "dfb30dd6605cb6c0efc275e1df1736f6e90d4d73"}}
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test}
   :probe {:main-opts ["-m" "machine.probe-cli"]}
