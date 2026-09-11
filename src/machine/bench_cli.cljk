@@ -1,5 +1,5 @@
 (ns machine.bench-cli
-  "`clojure -M:bench` — probe this machine, measure on it, and let the gate rule.
+  "`kbb -M:bench` — probe this machine, measure on it, and let the gate rule.
 
   The whole stack in one command: read the hardware, ask `layout` what it
   predicts, run the two loops, hand both arms to `perfgate`, print the verdict

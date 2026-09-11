@@ -1,5 +1,5 @@
 (ns machine.unrolled-cli
-  "`clojure -M:unrolled` — make the loop cheap enough for memory to be visible.
+  "`kbb -M:unrolled` — make the loop cheap enough for memory to be visible.
 
   Three experiments in this repo have now failed for the same reason: the
   per-element loop cost dwarfs the per-element memory cost, so no layout and

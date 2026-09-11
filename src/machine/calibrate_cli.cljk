@@ -1,5 +1,5 @@
 (ns machine.calibrate-cli
-  "`clojure -M:calibrate` — measure the roofline's constants, then test it.
+  "`kbb -M:calibrate` — measure the roofline's constants, then test it.
 
   `layout/achievable-ratio` was reported as agreeing with measurement twice on
   2026-08-03. Neither agreement meant anything: the loop floor came from the

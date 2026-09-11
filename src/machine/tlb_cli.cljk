@@ -1,5 +1,5 @@
 (ns machine.tlb-cli
-  "`clojure -M:tlb` — measure this machine's address-translation penalty.
+  "`kbb -M:tlb` — measure this machine's address-translation penalty.
 
   `machine` could validate a `:tlb` fact and `traversal` could consume one,
   but nothing could produce one, so the numbers in both were hand-copied from

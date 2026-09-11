@@ -1,5 +1,5 @@
 (ns machine.tiling-cli
-  "`clojure -M:tiling` — is `traversal/tile-plan`'s tile the fast one?
+  "`kbb -M:tiling` — is `traversal/tile-plan`'s tile the fast one?
 
   The plan picks a tile that *fits* a named cache level. Fitting and being
   fastest are different claims, and after the roofline result the default
