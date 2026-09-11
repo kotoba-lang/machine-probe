@@ -2,7 +2,7 @@
 
 ## 0.6.0 — 2026-08-03
 
-`clojure -M:perarm` — does per-arm bandwidth lookup predict better than one
+`kbb -M:perarm` — does per-arm bandwidth lookup predict better than one
 shared constant?
 
 One configuration, two predictions, one measurement, and a verdict that can say
@@ -18,7 +18,7 @@ that the JVM curve is compressed at short strides, so the arms differed by only
 
 ## 0.5.0 — 2026-08-03
 
-`bandwidth-curve` and `clojure -M:curve` — measure the whole curve, not one
+`bandwidth-curve` and `kbb -M:curve` — measure the whole curve, not one
 point.
 
 `bandwidth-bytes-per-ns` measures a single line-strided figure. That number was
@@ -38,7 +38,7 @@ a machine, not a machine**, which is why `:runtime` is now required.
 
 ## 0.4.0 — 2026-08-03
 
-`machine.bench/sum-*-unrolled` and `clojure -M:unrolled` — get the loop out of
+`machine.bench/sum-*-unrolled` and `kbb -M:unrolled` — get the loop out of
 the memory system's way.
 
 Three experiments had failed because the per-element loop cost dwarfed the
@@ -67,7 +67,7 @@ across runs; the sealed claim is not yet.
 
 ## 0.3.0 — 2026-08-03
 
-`machine.bench/run-tiling` and `clojure -M:tiling` — is `traversal/tile-plan`'s
+`machine.bench/run-tiling` and `kbb -M:tiling` — is `traversal/tile-plan`'s
 tile the fast one?
 
 Unanswerable here, and the CLI now says so before spending twenty minutes
@@ -85,7 +85,7 @@ cannot tell.
 
 ## 0.2.0 — 2026-08-03
 
-`machine.bench/run-scaling` and `clojure -M:scaling` — does contention widen
+`machine.bench/run-scaling` and `kbb -M:scaling` — does contention widen
 the layout gap?
 
 The answer is that this harness cannot say. Three consecutive runs put the
@@ -118,7 +118,7 @@ The effect half of the `machine` contract, which declares
   captured output on machines nobody has in the room.
 - `machine.bench` — the measurement half: AoS vs SoA as real `double-array`s,
   warmup then raw samples, no verdict of its own.
-- `clojure -M:probe --summary` and `clojure -M:bench [n] [width] [warmup] [reps]`.
+- `kbb -M:probe --summary` and `kbb -M:bench [n] [width] [warmup] [reps]`.
 
 First run on an Apple M1 Max forced two changes upstream in `machine` (0.2.0):
 optional `:ways`, because macOS does not report associativity at all, and

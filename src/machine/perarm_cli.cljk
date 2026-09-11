@@ -1,5 +1,5 @@
 (ns machine.perarm-cli
-  "`clojure -M:perarm` — does per-arm bandwidth lookup actually predict better?
+  "`kbb -M:perarm` — does per-arm bandwidth lookup actually predict better?
 
   layout 0.5.0 reads the machine's bandwidth curve at each arm's own stride
   rather than taking one figure for both. The claim was that this fixes the

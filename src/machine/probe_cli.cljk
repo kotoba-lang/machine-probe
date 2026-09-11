@@ -1,5 +1,5 @@
 (ns machine.probe-cli
-  "`clojure -M:probe` — read this machine and print its descriptor as EDN.
+  "`kbb -M:probe` — read this machine and print its descriptor as EDN.
 
   JVM-only and deliberately thin: the shell-out is the entire host effect, and
   everything it hands to `machine.probe` is a string. That is what keeps the

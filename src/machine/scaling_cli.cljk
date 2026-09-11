@@ -1,5 +1,5 @@
 (ns machine.scaling-cli
-  "`clojure -M:scaling` — does the AoS/SoA gap widen when cores compete for memory?
+  "`kbb -M:scaling` — does the AoS/SoA gap widen when cores compete for memory?
 
   The single-threaded run measured 2.02x against a predicted 16x. This tests
   the obvious explanation: one core cannot ask for enough bandwidth to make

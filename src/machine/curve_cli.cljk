@@ -1,5 +1,5 @@
 (ns machine.curve-cli
-  "`clojure -M:curve` — measure this machine's bandwidth curve.
+  "`kbb -M:curve` — measure this machine's bandwidth curve.
 
   Prints it in the shape `machine.core`'s `:bandwidth` section takes, so the
   output can go straight into a descriptor. The point of the curve rather than
