@@ -14,7 +14,7 @@
   Deterministic throughout. No timing, so this says the same thing on a
   machine at load 84 as on an idle one, which is what let it be written at
   all today."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [machine.core :as m]
             [layout.core :as l]
             [traversal.core :as t]

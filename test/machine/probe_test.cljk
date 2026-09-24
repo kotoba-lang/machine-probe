@@ -1,6 +1,6 @@
 (ns machine.probe-test
   (:require [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing]]
+            [kotoba.test :refer [deftest is testing]]
             [machine.core :as m]
             [machine.probe :as p]))
 
