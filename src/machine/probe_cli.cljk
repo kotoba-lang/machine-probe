@@ -5,7 +5,7 @@
   everything it hands to `machine.probe` is a string. That is what keeps the
   parsers testable against captured output on machines nobody has in the room."
   (:require [clojure.java.shell :as shell]
-            [clojure.pprint :as pp]
+            [kotoba.pprint :as pp]
             [kotoba.lang.text :as str]
             [machine.core :as m]
             [machine.probe :as p]))

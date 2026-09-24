@@ -7,7 +7,7 @@
   afternoon and both were wrong: the spread across strides on one machine is
   about 3x."
   (:require [clojure.java.shell :as shell]
-            [clojure.pprint :as pp]
+            [kotoba.pprint :as pp]
             [kotoba.lang.text :as str]
             [machine.bench :as b]
             [machine.core :as m]
