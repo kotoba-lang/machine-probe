@@ -7,7 +7,7 @@
   fact itself was added to fix. This closes it: the output is a `:tlb` map
   that goes straight into a descriptor, and the last thing this prints is
   whether `machine/valid?` accepts the descriptor it just built."
-  (:require [clojure.java.shell :as shell]
+  (:require [kotoba.lang.error :as kerror] [clojure.java.shell :as shell]
             [kotoba.lang.text :as str]
             [machine.bench :as b]
             [machine.core :as m]
@@ -47,7 +47,7 @@
         ;; still yields a curve to compare; the decision is the across-run one.
         attempts (vec (repeatedly runs
                         #(try {:tlb (b/translation-curve base {:reps reps :max-rsd 1.0})}
-                              (catch clojure.lang.ExceptionInfo e {:refused (ex-data e)}))))
+                              (catch kerror/ExceptionInfo e {:refused (ex-data e)}))))
         curves (vec (keep :tlb attempts))
         ;; across-run spread of every penalty, which is the decision
         spreads (when (= runs (count curves))

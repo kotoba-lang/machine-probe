@@ -1,5 +1,5 @@
 (ns machine.probe-test
-  (:require [clojure.java.io :as io]
+  (:require [kotoba.io :as io]
             [kotoba.test :refer [deftest is testing]]
             [machine.core :as m]
             [machine.probe :as p]))
@@ -37,7 +37,7 @@
   (is (= [:performance :efficiency] (mapv :id (m/clusters probed))))
   (testing "asking for a capacity without naming a cluster is an error, because
             there is no single answer"
-    (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+    (is (thrown? js/Error
                  (m/private-cache-bytes probed 2 :unified)))))
 
 (deftest each-cluster-answers-differently-which-is-the-whole-point
@@ -86,10 +86,10 @@
     (is (= 262144 (m/private-cache-bytes flat 2 :unified)))))
 
 (deftest an-unreadable-machine-fails-here-not-three-layers-down
-  (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+  (is (thrown? js/Error
                (p/probe {:platform :windows :run (fn [& _] "")})))
   (testing "a probe that misreads is caught by validation before it escapes"
-    (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
+    (is (thrown? js/Error
                  (p/probe {:platform :darwin
                            :run (fn [& _] "hw.cachelinesize: 100\nhw.nperflevels: 1\nhw.perflevel0.l1dcachesize: 1\nhw.perflevel0.cpusperl2: 1\n")})))))
 
