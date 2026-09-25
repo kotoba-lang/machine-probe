@@ -76,7 +76,7 @@
     (let [page (m/page-bytes m1-max)
           plan (t/tile-plan m1-max {:extents [4096 4096] :element-bytes 8 :arrays 3 :level 2})]
       (is (= 16384 page))
-      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs :default)
+      (is (thrown? :default
                    (p/cache m1-max {:page-bytes 4096
                                     :segments [{:id :default :capacity-pages 8 :policy :lru}]}))
           "a 4 KiB cache page on a 16 KiB machine is refused, not rounded")
@@ -106,7 +106,7 @@
     (let [bare (dissoc m1-max :gpu)]
       (is (nil? (m/bandwidth-at-stride bare 4096)))
       (is (nil? (m/translation-penalty bare 512 :streaming)))
-      (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs :default)
+      (is (thrown? :default
                    (g/workgroup-size bare {:shared-bytes-per-invocation 64})))
       (is (nil? (:tile/translation-penalty
                  (t/tile-plan bare {:extents [4096 4096] :element-bytes 8
